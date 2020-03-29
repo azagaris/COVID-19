@@ -38,7 +38,7 @@ This approach raises a number of questions, the most pertinent of which are in m
 * To what extent must epidemic spread be slowed down to achieve this?
 * How long before the light at the end of the tunnel?
 
-As a mathematical modeler, I attempted to quench my curiosity by sifting through data and setting up a rough predictive model --- regrettably, with the benefit of consulting with expert former colleagues. My approach is necessarily limited in scope, as I am limited in time, but hopefully adds signal to the noise. The R code I wrote for this study can be found [here](); see also [this simulation tool](https://gabgoh.github.io/COVID/index.html) written by [Gabriel Goh](https://www.linkedin.com/in/gabriel-goh-8ab441b5/).
+As a mathematical modeler, I attempted to quench my curiosity by sifting through data and setting up a rough predictive model --- regrettably, with the benefit of consulting with expert former colleagues. My approach is necessarily limited in scope, as I am limited in time, but hopefully adds signal to the noise. The R code I wrote for this study can be found [here](https://github.com/azagaris/COVID-19); see also [this simulation tool](https://gabgoh.github.io/COVID/index.html) written by [Gabriel Goh](https://www.linkedin.com/in/gabriel-goh-8ab441b5/).
 
 All in all, model projections play out _very badly_ for the herd immunity scenario. There is, however, a significant shadow cast on these projections by the fact that we're unaware of how many infections go unreported. Unless $98\%$ or more of the cases go unreported, though, hospital capacity is projected to be vastly inadequate to cope with this menace as it currently evolves.
 
