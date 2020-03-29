@@ -1,0 +1,284 @@
+---
+title: 'Flatening out the curve: model-driven estimates of COVID-19 disease progression
+  in The Netherlands'
+author: "Antonios Zagaris"
+date: "3/29/2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<script type="text/x-mathjax-config">
+MathJax.Hub.Config({
+  TeX: { equationNumbers: { autoNumber: "AMS" } }
+});
+</script>
+<style>
+body{text-align: justify}
+</style>
+
+```{r load.mods , echo=FALSE}
+source('settings.R') # load parametric settings
+source('simulate.epidemic.R') # load epidemic simulator
+source('RK4.integrator.R') # load epidemic simulator
+source('sir.vf.R') # load RK4 integrator
+```
+
+## Scope
+On March 16, 2020, the Dutch premier announced that the country's response to the COVID-19 pandemic will be to pursue _herd immunity_. In plain terms, this means that a substantial part of the population will need to become immune to the disease by contracting it and developing antibodies.^[The more people are immune the fewer can get infected, so disease spead slows down and outbreaks die out. This is the same principle underlying mass vaccination programs, with the important distinction that vaccines are much safer than the disease itself. At this time, a vaccine against COVID-19 is nowhere within sight.]
+
+The official numbers show that active COVID-19 cases in NL increase by approximately $22\%$ daily or $300\%$ weekly, raising concerns about the Dutch public health system's capacity to cope. The administration's response to these concens has been to introduce _social distancing_ measures, which are meant to slow down epidemic spread and prevent the health system from getting overwhelmed.
+
+This approach raises a number of questions, the most pertinent of which are in my opinion:
+
+* To what extent must epidemic spread be slowed down to achieve this?
+* How long before the light at the end of the tunnel?
+
+As a mathematical modeler, I attempted to quench my curiosity by sifting through data and setting up a rough predictive model --- regrettably, with the benefit of consulting with expert former colleagues. My approach is necessarily limited in scope, as I am limited in time, but hopefully adds signal to the noise. The R code I wrote for this study can be found [here](); see also [this simulation tool](https://gabgoh.github.io/COVID/index.html) written by [Gabriel Goh](https://www.linkedin.com/in/gabriel-goh-8ab441b5/).
+
+All in all, model projections play out _very badly_ for the herd immunity scenario. There is, however, a significant shadow cast on these projections by the fact that we're unaware of how many infections go unreported. Unless $98\%$ or more of the cases go unreported, though, hospital capacity is projected to be vastly inadequate to cope with this menace as it currently evolves.
+
+![_The principle behind flattening the epidemic curve ([source](https://www.health.harvard.edu/diseases-and-conditions/coronavirus-resource-center#COVID))_.](curve_flattening.jpg)
+
+## Model
+I model epidemic spread using the basic SIR model
+\begin{align}
+\frac{dI(t)}{dt} &= \beta I \frac{S}{N} - \gamma I , \nonumber
+\\
+\frac{dS(t)}{dt} &= -\beta I \frac{S}{N} , \nonumber
+\\
+\frac{dR(t)}{dt} &= \gamma I . \nonumber
+\end{align}
+The variable $I(t)$ counts infected inividuals in The Netherlands (NL) at time $t$, whereas $S(t)$ counts susceptibles and $R(t)$ the rest of the population. Clearly, these three variables sum up to the total population ($N \approx 17$ million) at all times. The parameters $\beta$ and $\gamma$ measure the rates of transmission and recovery, respectively, and will be estimated from data.
+
+This model can be challenged at several obvious fronts, most importantly due to being simplistic to the point of offense. This choice was inevitable, however, both to expedite the study and because publicly available data for model calibration remain scarce.^[In my experience, a data-calibrated simplistic model is preferable to a realistic model where parameters must be guessed.] Another data-related challenge is that the actual number of infecteds is _absolutely certainly significantly higher_ than [reported numbers](https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv).^[Non-hospitalized persons are [only tested](https://lci.rivm.nl/nieuws/casusdefinitie-en-testbeleid-covid-19-aangepast) if they are high-risk and already exhibit acute symptoms (fever and either cough or dyspnea).] A guiding assumption in my work below is that the actual number of infections, $I(t)$, remains proportional to the reported figure $I_\mathrm{rep}(t)$:
+\begin{equation}
+\label{p.def}
+\frac{I(t)}{I_\mathrm{rep}(t)} = p
+\ \mbox{is a constant greater than one} .
+\end{equation}
+This means, in effect, that an infected person has a specific (if unknown) probablity to satisfy RIVM guidelines for testing _and_ test positive _and_ be officially reported. To proceed with the study, $p$ must be known or estimated; we revisit this issue below. For now, we merely note that the reported number of infections evolves in par with the true one,
+$$
+\frac{dI_\mathrm{rep}(t)}{dt} = \beta I_\mathrm{rep} \frac{S}{N} - \gamma I_\mathrm{rep} .
+$$
+This is significant below, as it allows model calibration on the basis of the reported (rather than the unknown actual) infection numbers.
+
+
+## Parameter Estimates
+**Estimating $\gamma$.**
+The rate of recovery $\gamma$ is estimated from
+$$
+\gamma = \frac{1}{T_\mathrm{rec}},
+\quad\mbox{where $T_\mathrm{rec}$ is the average recovery period.}
+$$
+Recovery data from NL are not available: at the time of writing this (March 22), the [JHU dashboard](https://coronavirus.jhu.edu/map.html) has been reporting $2$ recoveries for the past several weeks, as well as $4,216$ cases and $180$ deaths. Because of this, we run with the [basic estimate](https://www.who.int/dg/speeches/detail/who-director-general-s-opening-remarks-at-the-media-briefing-on-covid-19---24-february-2020) $T_\mathrm{rec} \approx 2 \ \mathrm{weeks}$ to find
+$$
+\gamma \approx 0.07 \ \mathrm{day}^{-1} .
+$$
+ ```{r , echo=FALSE , results='hide'}
+ gamma=0.07 # declare gamma
+ ```
+ 
+**Estimating $\beta$.**
+The value of $\beta$ can be determined directly from infection data. NL is still essentially fully susceptible ($S \approx N$), so the number of infections evolves according to
+$$
+\frac{dI_\mathrm{rep}(t)}{dt} \approx (\beta - \gamma) I_\mathrm{rep} \ .
+$$
+This, in turn, yields
+\begin{equation}
+\label{Irep.t}
+I_\mathrm{rep}(t) \propto \mathrm{e}^{(\beta - \gamma) t}
+\quad\mbox{or, equivalently,}\quad
+\log I_\mathrm{rep}(t) = (\beta - \gamma) t + \mathrm{constant} .
+\end{equation}
+The [reported numbers](https://github.com/CSSEGISandData/COVID-19/blob/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv) at the time of writing are as follows:
+
+```{r It.load , echo=FALSE}
+I.t.NL <- read.csv('/Users/herzog/Documents/Machine/EXTRAMURAL/2016-2020/20-COVID19Modeling-LinkedIn/I_vs_t_NL.csv')
+I.t.NL$t <- as.Date(I.t.NL$t) # convert to date
+I.t.NL
+```
+
+A semilog plot shows clear linearity (i.e. exponential growth of $I_\mathrm{rep}$) from March 08 to March 21.^[The outlier on March 12 likely points to lack of reporting on that day.]
+
+```{r It.plot , echo=FALSE}
+plot(I.t.NL$t , I.t.NL$I , log="y" ,
+     typ = 'p' , pch=19 , col = 'black' , xlab = '' , ylab = 'reported infections' , 
+     main="Time series of reported infections in NL")
+grid(nx=1+nrow(I.t.NL)  , ny=10 , lty = 'dotted')
+idxs = I.t.NL$t %in% c('2020/03/08' , '2020/03/21') # indices of linearity range
+lines(as.Date(c('2020/03/08','2020/03/08')) , c(min(I.t.NL$I),max(I.t.NL$I)) , 
+      col='red' , lty = 'dotted')
+lines(as.Date(c('2020/03/21','2020/03/21')) , c(min(I.t.NL$I),max(I.t.NL$I)) , 
+      col='red' , lty = 'dotted')
+```
+
+The slope of this linear relation equals $\beta - \gamma$ by virtue of relation $\eqref{Irep.t}$ above. The slope is^[The outlying measurement of March 12 affects the slope merely by $1\%$.]
+
+```{r It.linfit , echo=FALSE}
+rg.lin <- '2020/03/08' <= I.t.NL$t & I.t.NL$t <= '2020/03/21' # dates of linear range
+rg.lin[I.t.NL$t == '2020/03/12'] <- FALSE # exclude outlier
+logIvst.lin <- lm(log(I.t.NL$I[rg.lin]) ~ I.t.NL$t[rg.lin])
+slope <- logIvst.lin$coefficients[[2]] # slope of linear fit
+sprintf('%.2f [1/day]',slope) # print slope
+```
+
+This result is further corroborated by the individual (day-to-day) estimates,
+
+```{r It.indierates , echo=FALSE}
+rg.lin <- '2020/03/13' <= I.t.NL$t & I.t.NL$t <= '2020/03/21' # dates of linear range
+aux.df <- data.frame('t' = I.t.NL$t[rg.lin] , 'I' = I.t.NL$I[rg.lin])
+aux.df$logratio[2:length(aux.df$t)] <- 
+  log(aux.df$I[2:nrow(aux.df)]) - # infections at time t+1
+  log(aux.df$I[1:(nrow(aux.df)-1)]) # infections at time t
+aux.df <- aux.df[-1,]
+rownames(aux.df) <- 1:nrow(aux.df)
+aux.df
+```
+
+having average `r round(mean(aux.df$logratio) , digits=2)`. We use the value `r 0.2` for the slope, which results in the final estimates^[The estimates above of a `r 22`$\%$ daily and `r 300`$\%$ weekly increase of infection numbers (both reported and actual) are based on these values for $\beta$ and $\gamma$ through $\mathrm{e}^{\beta - \gamma} \approx 1.22$ and $\mathrm{e}^{7(\beta - \gamma)} \approx 4$.]
+\begin{equation}
+\label{beta.gamma.est}
+\beta \approx 0.27\ \mathrm{day}^{-1}
+\quad\mbox{and}\quad
+\gamma \approx 0.07 \ \mathrm{day}^{-1} .
+\end{equation}
+
+**Estimating $R_0$.**
+According to this simple model and estimates $\eqref{beta.gamma.est}$, the _basic reproduction number_ $R_0$ is
+$$
+R_0 = \beta T_\mathrm{rec} = \frac{\beta}{\gamma} = 3.9 .
+$$
+This value is very much in the upper range of worldwide $R_0$ [estimates](https://gabgoh.github.io/COVID/index.html). It is unclear, right now, which part of the discrepancy between his estimate and the oft-quoted nominal value $R_0 = 2.2$ is actual and which is an artifact of the model or its calibration.
+
+**Estimating $p$.**
+The most difficult (if not impossible) task is to estimate the correspondence (proportion) between actual infections and officially reported numbers. Since testing is limited as described above, any estimate of $p$ can only be indirect, largely arbitrary and in danger of grossly misrepresenting the actual value. If $p$ is smaller or larger than estimated, then the number of actual cases is under- or overestimated _proportionally_. This is a major limitation of the model.
+
+To appreciate the challlenge, consider the examples of South Korea and Italy, both of which tested inhabitants extensively. The former reported $67$ deaths in approximately $8,000$ reported cases corresponding to $222,000$ administered tests. The latter, on the other hand, had (roughly) $1,000$ deaths in $15,000$ cases corresponding to $73,000$ tests ([source](https://www.reuters.com/article/us-health-coronavirus-response-specialre/special-report-italy-and-south-korea-virus-outbreaks-reveal-disparity-in-deaths-and-tactics-idUSKBN20Z27P)). These poportions are nowhere near comparable and estimates of $p$ based on one or another will vary considerably.
+
+For NL specificaly, case fatality runs at approximately $5\%$ at the time of writing. The corresponding number is ten times lower in neighboring Germany, which [tests more extensively than any other country](https://www.ft.com/content/c0755b30-69bb-11ea-800d-da70cff6e4d3), indicating that NL might be underreporting infections by a factor of $10$. Similarly, a [recent modeling study](https://science.sciencemag.org/content/early/2020/03/13/science.abb3221) using data from the Chinese outbreak (case mortality $4\%$) estimated $p$ to be approximately $7$ and the Greek administration [estimates](https://www.kathimerini.gr/1070487/article/epikairothta/ellada/swt-tsiodras-ews-10000-atoma-exoyn-prosvlh8ei-sthn-ellada) $p$ to be _at least_ $12 - 14$. As a ballpark estimate, we use the value $p = 10$ for the rest of this study, noting that errors in that value are passed on to model-projected hospitalization numbers _proportionally_.
+
+
+## Methodology
+Given parameter estimates, one can simulate the SIR model and compute the maximum number of (actual) infecteds achieved during the outbreak. Since one out of $p$ _actual_ cases is reported by $\eqref{p.def}$ and [one out of four](https://www.volkskrant.nl/nieuws-achtergrond/meer-doden-en-iets-minder-ziekenhuisopnames-door-uitbraak-coronavirus~b9d4fb61/) _officially reported_ cases ends up in the hospital, hospitalizations account for $0.25 \cdot 1/p$ of the infection numbers:
+$$
+I_\mathrm{hosp}(t) = \frac{0.25}{p} \, I(t) ,
+\quad\mbox{which reads}\
+I_\mathrm{hosp}(t) = 0.025 \, I(t)
+\ \mbox{for $p=10$ specifically.}
+$$
+This simulation can be easily repeated for different parameter settings --- predominantly $\beta$ and $p$ --- to estimate parameter sensitivities. Containment measures, such as social distancing or quarantining, are expected to lower the value of $\beta$. We shall see that this, in turn, reduces the maximum number of infecteds --- and thus also of hospitalizations --- and drags out the epidemic.
+
+
+The point here is to estimate:
+
+* The range of $\beta$ for which hospitalizations remain within the health system capacity;
+* The time until the epidemic reaches its apex, i.e. $I(t)$ is maximized.
+
+NL has [roughly $38,000$ hospital beds](https://www.staatvenz.nl/kerncijfers/ziekenhuisbedden), and I take that number to be the health system capacity. This is a significantly generous assumption, as it amounts to _allocating all hospital beds to COVID-19 patients_.^[In reality, [only $38\%$ of those beds are readily available](https://www.volkskrant.nl/nieuws-achtergrond/hoe-snel-zijn-de-bedden-in-het-ziekenhuis-op-door-uitbraak-van-het-coronavirus~bfe053d4/).] This assumption entails that $I_\mathrm{hosp}(t)$ must remain _below_ $38,000$ at all times and all the way to the apex. For our model, the apex occurs when
+$$
+\beta \frac{S}{N} - \gamma = 0
+\quad\mbox{or, equivalently,}\quad
+S = \frac{N}{R_0} .
+$$
+Since $S$ decreases with time, it suffices to integrate the model until the moment $t^*$ where $S(t^*) = N / R_0$. That time is the period until the epidemic reaches its apex. The maximum number of infecteds is then $I(t^*)$ and of hospitalizations $0.25 \cdot 1/p \cdot I(t^*)$.
+
+It would make sense to introduce distinct compartments for infecteds that (a) are hospitalized; (b) tested positive without being hospitalized and (c) were not tested at all, at they receive different advice and treatment and thus have different infectious potential. However, this is one of the many model improvements that are beyond the scope of this simple investigation. After all, this limitation is mitigated for $p=10$ or greater because the large majority forms a uniform group of undetected infections.
+
+
+## Results
+**Projected situation without intervention**
+
+I take March 22 as beginning of the simulation.^[For simplicity, I simulate the SIR model using RK4 with $dt = 0.1 \ \mathrm{day}$ guaranteeing sufficient accuracy.] Shown below is a simulation corresponding to the epidemiological parameters in NL on March 22 and to $p=10$ (i.e. $90\%$ of infections going unreported); note the logarithmic scale on the vertical axis. The grey curve shows the evolution of (actual) active cases in time and the red one that of hospitalizations; the green line marks health system capacity. The model projection is that, within roughly a month, there will be 6.7 million active infections in NL, $168,000$ of which in need of hospitalization --- a number exceeding capacity by a staggering factor of 4.4. At that point, 4.4 million individuals will be susceptible and 6 million removed from the susceptible pool.
+
+```{r It.simul.p10 , echo=FALSE}
+params.c <- params[nrow(params),] # parameter set for NL situation at March 22
+p <- 10 # enforce p-value
+tsir <- simulate.epidemic(tsir.o , params.c , dt)
+tSIR <- data.frame( # population-level results
+  't'  =tsir$t ,
+  'S' = N*tsir$s ,
+  'I' = N*tsir$i ,
+  'R' = N*tsir$r ,
+  'Ihosp' = N*(q/p)*tsir$i)
+tSIR[,c('S','I','R','Ihosp')] <- round(tSIR[,c('S','I','R','Ihosp')]) # round to whole persons
+plot(tSIR$t , tSIR$I , log = 'y' ,
+xlim = c(tSIR$t[1], tSIR$t[nrow(tSIR)]) ,
+ylim = c(1 , N) ,
+typ = 'l' , col = 'grey' , lwd = 3 ,
+xlab = 'days after March 22' , ylab = 'number of individuals' ,
+main="Modeled time series of hospitalizations in NL (p=10)")
+lines(tSIR$t , tSIR$Ihosp , col='red' , lwd = 3)
+lines(c(tSIR$t[1] , tSIR$t[nrow(tSIR)]) , c(beds , beds) ,
+col='green' , lwd = 2)
+grid(nx=50  , ny=20 , lty = 'dotted')
+```
+
+Note carefully that this is _not_ the total number of hospitalizations throughout the duration of the epidemic. Also note that this is a mere prediction based on a simplistic model that assumes $90\%$ of cases going unreported. Unsurprisingly, that percentage would need to climb to $98\%$ ($p \approx 45$) for hospital beds to suffice. Although the possibility of such sparse detection rate cannot be readily refuted, there is no data supporting it either. In fact, if $p$ held that extreme value, then $1\%$ of the population would have been infected already on March 22 and over $2\%$ five days later. Had that been the case, case fatality would be in the range $0.09-0.14\%$, i.e. [in par with seasonal influenza](https://www.cdc.gov/flu/about/burden/index.html).^[This argument was [made earlier](https://www.statnews.com/2020/03/17/a-fiasco-in-the-making-as-the-coronavirus-pandemic-takes-hold-we-are-making-decisions-without-reliable-data/) by J. Ioannidis.]
+
+**Projected intervention impact**
+
+Next, I investigate the progression of the epidemic under social distancing measures. In effect, such measures lower the value of the transmission rate $\beta$ or, equivalently, of the basic reproduction number $R_0$. The figure below shows the projected maximum number of hospitalizations (again: not the cumulative) for different efficacies of the measures. The grey vertical marks the situation on March 22 as estimated above: $\beta = 0.27$, i.e. $R_0 = 3.9$ and slope $0.20$.^[These quantities are linearly related: $R_0 = \beta/\gamma$ and $\mathrm{slope} = \beta - \gamma$, with $\gamma = 0.07$ fixed.] The green horizontal marks health system capacity as before.
+
+```{r maxI.simul.p10 , echo=FALSE}
+out.df <- read.csv('out.df.p10.csv') # simulation result of tab.hosp.R
+par(mar=c(11, 4, 4, 4) + 0.1) # increase bottom margin
+plot(out.df$Ro , out.df$max.Ihosp ,
+     typ = 'l' , col = 'black' , xlab = '' , ylab = 'hospitalizations' ,
+     main="Modeled number of maximum hospitalizations in NL (p=10)")
+lines(c(out.df$Ro[1] , out.df$Ro[nrow(out.df)]) , c(beds , beds) ,
+      col='green' , lwd = 2)
+lines(c(out.df$Ro[nrow(out.df)] , out.df$Ro[nrow(out.df)]) , 
+      c(out.df$max.Ihosp[1] , out.df$max.Ihosp[nrow(out.df)]) ,
+      col='grey' , lwd = 2)
+mtext(side = 1 , text = 'Ro' , line = 2.0)
+# Plot vs transmission rate beta
+par(new=T) # retain plot
+plot(out.df$beta , out.df$max.Ihosp ,
+     typ = 'l' , col = 'black' , xlab = '' , ylab = '' , axes = FALSE)
+axis(side = 1 , xlim = c(gamma,max(out.df$beta)) , 
+     at = seq(from=gamma,to=max(out.df$beta),by=0.05) , line = 4.0)
+mtext(side = 1 , text = 'transmission rate' , line = 6.0)
+# Plot vs slope
+par(new=T) # retain plot
+plot(out.df$slope , out.df$max.Ihosp ,
+     typ = 'l' , col = 'black' , xlab = '' , ylab = '' , axes = FALSE)
+axis(side = 1 , xlim = c(0,max(out.df$slope)) , line = 8.0)
+mtext(side = 1 , text = 'slope' , line = 10.0)
+```
+
+Note the _near linearity_ of the plot: for beds to suffice, according to this projection, the transmission rate would need to be _more than halved_ --- $\beta = 0.11$ or $R_0 = 1.6$, amounting to reduction by $60\%$. The slope, on the other hand, would need to be reduced nearly by $80\%$ down to $0.045$.^[The reason for this discrepancy is that $\beta$ and $R_0$ are directly proportional, whereas the slope factors in an offset.]
+
+A first estimate of measure efficacy is now possible, since measures took effect two weeks ago (March 16). A quantitative change in the growth rate can be seen a week later, consistent with the average incubation period.^[See also [this](https://medium.com/@tomaspueyo/coronavirus-act-today-or-people-will-die-f4d3d9cd99ca) on the subject.] The individual (day-to-day) estimates for the slope are shown below
+
+```{r It.new.indierates , echo=FALSE}
+rg.lin <- '2020/03/21' <= I.t.NL$t & I.t.NL$t <= '2020/03/28' # dates of new linear range
+aux.df <- data.frame('t' = I.t.NL$t[rg.lin] , 'I' = I.t.NL$I[rg.lin])
+aux.df$logratio[2:length(aux.df$t)] <-
+  log(aux.df$I[2:nrow(aux.df)]) - # infections at time t+1
+  log(aux.df$I[1:(nrow(aux.df)-1)]) # infections at time t
+aux.df <- aux.df[-1,]
+rownames(aux.df) <- 1:nrow(aux.df)
+aux.df
+```
+
+Their average is `r round(mean(aux.df$logratio) , digits=2)`, a $30\%$ decrease from the period leading up to March 22, and consistent with the linear fit to the data,
+
+```{r It.new.linfit , echo=FALSE}
+rg.lin <- '2020/03/21' <= I.t.NL$t & I.t.NL$t <= '2020/03/28' # dates of new linear range
+logIvst.lin <- lm(log(I.t.NL$I[rg.lin]) ~ I.t.NL$t[rg.lin])
+slope <- logIvst.lin$coefficients[[2]] # slope of linear fit
+sprintf('%.2f [1/day]',slope) # print slope
+```
+
+This marks a concurrent $22\%$ decrease in the epidemiological parameters, bringing them down to $\beta = 0.21$ and $R_0 = 3$. The expected maximum number of hospitalizations is $130,000$ in this scenario, with the peak occuring roughly seven weeks after March 22. This is still 3.3 times the capacity, pointing to a clear need for additional measures.
+
+
+## Conclusion
+I undertook this short study to shed some (arguably diffuse) light on how the herd immunity story will play out in NL in the full or partial absence of transmission-mitigating measures. At the same time, I attempted to estimate measure efficacy guaranteeing proper hospitalization for all in need. The study was undertaken with full knowledge of data gaps amd model limitations and its findings should be interpreted as mere rough projections.
+
+The main finding is the need for social distancing measures to slow down the epidemic. In the absence of such measures, the Dutch health system would have been (vastly) overwhelmed within a couple of weeks and the majority of those needing hospitalization would be denied it. The data show a clear slow-down in the last week that is consistent with measures introduced by the government. However, model projections show the need for substantial additional slow-down to avoid the scenario above. According to the same projections, the measures taken pushed off the peak from late April to mid-May. Strengthening the measures to the point where herd immunity can set on without ovewhelming the health system would delay this further until mid-summer. Since litle is known about weather influence, however, this particular projection is of little predictive value.
