@@ -38,7 +38,7 @@ This approach raises a number of questions, the most pertinent of which are in m
 * To what extent must epidemic spread be slowed down to achieve this?
 * How long before the light at the end of the tunnel?
 
-As a mathematical modeler, I attempted to quench my curiosity by sifting through data and setting up a rough predictive model --- regrettably, with the benefit of consulting with expert former colleagues. My approach is necessarily limited in scope, as I am limited in time, but hopefully adds signal to the noise. The R code I wrote for this study can be found [here](https://github.com/azagaris/COVID-19); see also [this simulation tool](https://gabgoh.github.io/COVID/index.html) written by [Gabriel Goh](https://www.linkedin.com/in/gabriel-goh-8ab441b5/).
+As a mathematical modeler, I attempted to quench my curiosity by sifting through data and setting up a rough predictive model --- regrettably, without the benefit of consulting with expert former colleagues. My approach is necessarily limited in scope, as I am limited in time, but hopefully adds signal to the noise. The R code I wrote for this study can be found [here](https://github.com/azagaris/COVID-19); see also [this simulation tool](https://gabgoh.github.io/COVID/index.html) written by [Gabriel Goh](https://www.linkedin.com/in/gabriel-goh-8ab441b5/).
 
 All in all, model projections play out _very badly_ for the herd immunity scenario. There is, however, a significant shadow cast on these projections by the fact that we're unaware of how many infections go unreported. Unless $98\%$ or more of the cases go unreported, though, hospital capacity is projected to be vastly inadequate to cope with this menace as it currently evolves.
 
@@ -61,7 +61,7 @@ This model can be challenged at several obvious fronts, most importantly due to 
 \frac{I(t)}{I_\mathrm{rep}(t)} = p
 \ \mbox{is a constant greater than one} .
 \end{equation}
-This means, in effect, that an infected person has a specific (if unknown) probablity to satisfy RIVM guidelines for testing _and_ test positive _and_ be officially reported. To proceed with the study, $p$ must be known or estimated; we revisit this issue below. For now, we merely note that the reported number of infections evolves in par with the true one,
+This means, in effect, that an infected person has a specific (if unknown) probablity to satisfy RIVM guidelines for testing _and_ test positive _and_ be officially reported. To proceed with the study, $p$ must be known or estimated; I revisit this issue below. For now, I merely note that the reported number of infections evolves in par with the true one,
 $$
 \frac{dI_\mathrm{rep}(t)}{dt} = \beta I_\mathrm{rep} \frac{S}{N} - \gamma I_\mathrm{rep} .
 $$
@@ -222,7 +222,7 @@ Note carefully that this is _not_ the total number of hospitalizations throughou
 
 **Projected intervention impact**
 
-Next, I investigate the progression of the epidemic under social distancing measures. In effect, such measures lower the value of the transmission rate $\beta$ or, equivalently, of the basic reproduction number $R_0$. The figure below shows the projected maximum number of hospitalizations (again: not the cumulative) for different efficacies of the measures. The grey vertical marks the situation on March 22 as estimated above: $\beta = 0.27$, i.e. $R_0 = 3.9$ and slope $0.20$.^[These quantities are linearly related: $R_0 = \beta/\gamma$ and $\mathrm{slope} = \beta - \gamma$, with $\gamma = 0.07$ fixed.] The green horizontal marks health system capacity as before.
+Next, I investigate the progression of the epidemic under social distancing measures. In effect, such measures lower the value of the transmission rate $\beta$ or, equivalently, of the basic reproduction number $R_0$. The figure below shows the projected maximum number of hospitalizations (again: not the cumulative) for different efficacies of the measures. The grey vertical marks the situation on March 22 as estimated above: $\beta = 0.27$, i.e. $R_0 = 3.9$ and slope $0.20$.^[These quantities are linearly related: $R_0 = \beta/\gamma$ and $\mathrm{slope} = \beta - \gamma$, with $\gamma = 0.07$ fixed.] The green horizontal marks health system capacity, as before, and the pink vertical the projection when (a first estimate of) the effect of social distancing measures is factored in (see below).
 
 ```{r maxI.simul.p10 , echo=FALSE}
 out.df <- read.csv('out.df.p10.csv') # simulation result of tab.hosp.R
@@ -272,7 +272,7 @@ rownames(aux.df) <- 1:nrow(aux.df)
 aux.df
 ```
 
-Their average is `r round(mean(aux.df$logratio) , digits=2)`, a $30\%$ decrease from the period leading up to March 22, and consistent with the linear fit to the data,
+Their average is `r round(mean(aux.df$logratio) , digits=2)`, a $30\%$ decrease from the period leading up to March 22, and consistent with the linear fit to the data that yields slope
 
 ```{r It.new.linfit , echo=FALSE}
 rg.lin <- '2020/03/21' <= I.t.NL$t & I.t.NL$t <= '2020/03/28' # dates of new linear range
